@@ -1,0 +1,29 @@
+# ---- Web 框架 ----
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart
+pydantic>=2.7
+pydantic-settings>=2.3
+
+# ---- 智谱 API（GLM-4V-Flash / GLM-4-Flash / CogView-3-Flash，OpenAI 兼容）----
+openai>=1.40
+httpx
+tenacity
+
+# ---- 图像处理 ----
+pillow
+numpy
+opencv-contrib-python-headless   # 卡通化兜底（含 cv2.stylization 等扩展模块）
+mediapipe                        # 人脸关键点（纯 CPU）
+
+# ---- AnimeGANv2 卡通化（torch 按机器装 CUDA 版：pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121）----
+torch
+torchvision
+
+# ---- 视频生成 ----
+imageio-ffmpeg                   # 自带 ffmpeg 二进制，无需系统安装
+edge-tts                         # 免费旁白配音（需联网）
+mutagen                          # 读取配音时长
+
+# ---- 可选：素材抠图（制作奶龙图层素材时用，不用可注释）----
+# rembg

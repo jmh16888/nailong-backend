@@ -1,0 +1,13 @@
+# 环境密钥
+.env
+
+# 模型下载/缓存（TORCH_HOME / HF_HOME / U2NET_HOME 都指向这里）
+.cache/
+
+# 运行时产物（上传与生成结果）
+app/storage/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
