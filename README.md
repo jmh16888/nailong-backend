@@ -60,12 +60,40 @@ scripts/e2e_test.py  # 端到端冒烟测试脚本
 ## 同步与部署
 
 - **代码**：走 GitHub 私有仓库（`git pull/push`），版本管理与协作。
-- **完整运行环境**（含 `.cache/` 模型缓存、`storage/` 产物、`.env`）：不进 git，
-  用 rsync 在服务器与本地之间直传（在**本地机器**上执行）：
+- **完整运行环境**（含项目内 `.cache/` 模型缓存、`storage/` 产物、`.env`）：不进 git，
+  直接在服务器与本地之间拷贝整个项目目录。
+
+### 下载到本地（在自己电脑的终端执行）
 
 ```bash
-rsync -avz --progress <服务器登录>:/root/ND/nailong-backend/ ./nailong-backend/
+scp -rC <服务器登录>:/root/ND/nailong-backend ./
 ```
 
-重跑同一条命令即增量同步。本地拿到后按"快速开始"装依赖即可跑，
-`TORCH_HOME` 等已指向项目内 `.cache/`，AnimeGANv2 权重不用重下。
+- 只要 `nailong-backend` 这一个目录（约 51MB）；`scp -r` 会连隐藏目录一起拷，
+  项目内 `.cache/` 里的 AnimeGANv2 权重自动带上，本地不用重下。
+- **不要**拷 `/root/ND/.cache/`（约 2.9GB，那是 pip 装包的 wheel 缓存，
+  本地 `pip install` 会自己重新下载）。
+- 以后增量同步（只传差异）可用：`rsync -avz --progress <服务器登录>:/root/ND/nailong-backend/ ./nailong-backend/`
+
+### 本地首次配置
+
+```bash
+cd nailong-backend
+conda create -n DN python=3.10 -y && conda activate DN   # 已有 DN 环境则跳过创建
+
+# 有 NVIDIA 显卡：先装 CUDA 版 torch
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements.txt        # 无独显直接跑这步即可（装 CPU 版 torch）
+
+cp .env.example .env                   # 然后编辑 .env：
+#   NAILONG_ZHIPU_API_KEY=你的key      # 智谱控制台 https://www.bigmodel.cn/ → API keys
+#   NAILONG_DEVICE=cpu                 # 仅无独显时加这行
+
+uvicorn app.main:app --port 8000
+```
+
+验证：浏览器打开 http://127.0.0.1:8000/docs ；再改 `scripts/e2e_test.py`
+顶部 CONFIG 区的照片路径，跑 `python scripts/e2e_test.py --skip-video` 冒烟。
+
+> 不填 API key 也能启动，VLM/剧本相关步骤会自动降级走默认结果；
+> 访问 `GET /api/health` 可看 `zhipu_key_configured` 确认 key 是否生效。
