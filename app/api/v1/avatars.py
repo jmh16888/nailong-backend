@@ -12,23 +12,11 @@ from ...schemas.avatar import (
     MediapipeSignals, Outfit, OutfitChangeRequest, OutfitChangeResponse, SkinTone,
     WardrobeCategory, WardrobeItem, WardrobeResponse,
 )
+from ...prompts import LABELS
 from ...schemas.common import ImageRef
-from ...services import avatar_compose, face, image_gen, store, vlm
+from ...services import avatar_compose, bg_remove, face, image_gen, store, vlm
 
 router = APIRouter()
-
-_CN = {
-    HairStyle: {"bald": "光头", "buzz": "板寸", "short": "短发", "medium": "及肩发",
-                "long_straight": "黑长直", "long_curly": "长卷发", "ponytail": "马尾",
-                "twin_tails": "双马尾", "bun": "丸子头"},
-    HairColor: {"black": "黑色", "brown": "棕色", "blonde": "金色",
-                "gray_white": "灰白", "colorful": "彩色"},
-    Glasses: {"none": "无", "round": "圆框", "square": "方框", "sunglasses": "墨镜"},
-    Outfit: {"none": "奶龙本体", "tshirt": "T恤", "hoodie": "卫衣",
-             "dress": "连衣裙", "suit": "西装", "cape": "披风"},
-    Accessory: {"none": "无", "hat": "帽子", "headband": "发箍", "bow": "蝴蝶结", "scarf": "围巾"},
-    Expression: {"happy": "开心", "neutral": "平静", "surprised": "惊讶", "cool": "酷", "shy": "害羞"},
-}
 
 
 def _default_features(note: str) -> FaceFeatures:
@@ -83,28 +71,24 @@ async def analyze_avatar(file: UploadFile = File(...)) -> AvatarAnalyzeResponse:
 
 
 @router.post("/avatars/compose", response_model=AvatarComposeResponse,
-             summary="特征 JSON → 奶龙形象 PNG（纸娃娃合成）")
+             summary="特征 JSON → 形象 PNG（CogView 生图 + rembg 抠透明）")
 def compose_avatar(req: ComposeRequest) -> AvatarComposeResponse:
-    img, layers = avatar_compose.compose_avatar(req.features)
     avatar_id = req.avatar_id or store.new_id()
-
     png_path = _image_path(avatar_id)
-    img.save(png_path)
-    store.save_json(_features_path(avatar_id), req.features)  # 特征与形象同步
 
-    fancy_ref = None
-    if req.with_fancy:
-        fancy_bytes = image_gen.fancy_avatar(req.features)
-        if fancy_bytes:
-            fancy_path = store.output_dir("avatars") / f"{avatar_id}_fancy.png"
-            fancy_path.write_bytes(fancy_bytes)
-            fancy_ref = ImageRef(id=f"{avatar_id}_fancy", url=store.url_of(fancy_path))
+    # 主图：GLM-4 扩写 prompt → CogView 生成 → rembg 抠透明；任一步失败直接报错（无纸娃娃兜底）
+    cogview_bytes = image_gen.cogview_avatar(req.features)
+    cutout_bytes = (bg_remove.cutout_to_canvas(cogview_bytes, 512)
+                    if cogview_bytes else None)
+    if not cutout_bytes:
+        raise HTTPException(502, "形象生成失败：CogView/抠图未返回有效结果（已无纸娃娃兜底）")
+    png_path.write_bytes(cutout_bytes)
+    store.save_json(_features_path(avatar_id), req.features)  # 特征与形象同步
 
     return AvatarComposeResponse(
         avatar_id=avatar_id,
         image=ImageRef(id=avatar_id, url=store.url_of(png_path)),
-        layers=layers,
-        fancy_image=fancy_ref,
+        layers=[],
     )
 
 
@@ -124,13 +108,21 @@ def change_outfit(avatar_id: str, req: OutfitChangeRequest) -> OutfitChangeRespo
     if req.accessory is not None:
         features.accessories = [] if req.accessory == Accessory.none else [req.accessory]
 
-    img, layers = avatar_compose.compose_avatar(features)
-    img.save(_image_path(avatar_id))
+    img, layers = avatar_compose.compose_avatar(features)  # 纸娃娃：兜底 + layers
+    png_path = _image_path(avatar_id)
+    # 主图：CogView 重生成（用合并后的 features，换装才看得到效果）→ rembg 抠透明
+    cogview_bytes = image_gen.cogview_avatar(features)
+    cutout_bytes = (bg_remove.cutout_to_canvas(cogview_bytes, 512)
+                    if cogview_bytes else None)
+    if cutout_bytes:
+        png_path.write_bytes(cutout_bytes)
+    else:
+        img.save(png_path)
     store.save_json(fp, features)
 
     return OutfitChangeResponse(
         avatar_id=avatar_id,
-        image=ImageRef(id=avatar_id, url=store.url_of(_image_path(avatar_id))),
+        image=ImageRef(id=avatar_id, url=store.url_of(png_path)),
         layers=layers,
         features=features,
     )
@@ -153,7 +145,7 @@ def get_wardrobe() -> WardrobeResponse:
                 p = settings.assets_dir / "nailong" / slot / f"{e.value}.png"
                 if p.exists():
                     preview = ImageRef(id=e.value, url=f"/assets/nailong/{slot}/{e.value}.png")
-            items.append(WardrobeItem(id=e.value, name=_CN.get(enum_cls, {}).get(e.value, e.value),
+            items.append(WardrobeItem(id=e.value, name=LABELS.get(enum_cls, {}).get(e.value, e.value),
                                       preview=preview))
         categories.append(WardrobeCategory(slot=slot, items=items))
     return WardrobeResponse(categories=categories)

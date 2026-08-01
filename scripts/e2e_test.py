@@ -23,23 +23,23 @@ import httpx
 BASE_URL = "http://127.0.0.1:8000"
 
 # 【改这里】测试照片路径：人脸照（用于奶龙形象分析）
-PORTRAIT_PHOTO = Path("/root/ND/test_data/portrait.jpg")
+PORTRAIT_PHOTO = Path("/root/ND/test_data/2184.jpg")
 
-# 【改这里】场景照（用于背景卡通化；也可以和人脸照用同一张）
-SCENE_PHOTO = Path("/root/ND/test_data/scene.jpg")
+# 【改这里】背景生成 prompt（想生成什么背景就写什么，仅示例）
+BG_PROMPT = "校园操场，阳光明媚，有教学楼和跑道"
 
 # 【改这里】视频串烧用的照片列表（1~10 张，需已存在于本机）
 VIDEO_PHOTOS = [
-    Path("/root/ND/test_data/photo1.jpg"),
-    Path("/root/ND/test_data/photo2.jpg"),
-    Path("/root/ND/test_data/photo3.jpg"),
+    Path("/root/ND/test_data/2011.jpg"),
+    Path("/root/ND/test_data/2012.jpg"),
+    Path("/root/ND/test_data/2013.jpg"),
 ]
 
 # 输出目录：脚本把每步响应 JSON 存这里，方便核对
 OUTPUT_DIR = Path(__file__).resolve().parent / "test_output"
 
 # 视频生成参数
-VIDEO_THEME = "奶龙历险记"
+VIDEO_THEME = "卡通历险记"
 VIDEO_WITH_NARRATION = True      # edge-tts 配音（需联网）
 VIDEO_POLL_INTERVAL = 5          # 轮询间隔秒
 VIDEO_TIMEOUT = 600              # 最长等待秒
@@ -93,12 +93,11 @@ def main() -> int:
     avatar_id = analyze["avatar_id"]
     features = analyze["features"]
 
-    # ---------- 2. 奶龙形象：合成 ----------
+    # ---------- 2. 形象合成 ----------
     step("2. 形象合成 POST /api/v1/avatars/compose")
     r = client.post("/api/v1/avatars/compose", json={
         "features": features,
         "avatar_id": avatar_id,      # 挂在同一记录下，后续游戏/视频可引用
-        "with_fancy": False,          # 想测 CogView 精致版改 True（慢 10~30s）
     })
     r.raise_for_status()
     dump("avatar_compose", r.json())
@@ -117,14 +116,9 @@ def main() -> int:
     r.raise_for_status()
     dump("wardrobe", r.json())
 
-    # ---------- 5. 背景卡通化 ----------
-    step("5. 背景卡通化 POST /api/v1/backgrounds/cartoonize")
-    if not need(SCENE_PHOTO):
-        return 1
-    with SCENE_PHOTO.open("rb") as f:
-        r = client.post("/api/v1/backgrounds/cartoonize",
-                        files={"file": (SCENE_PHOTO.name, f, "image/jpeg")},
-                        data={"style": "paprika"})
+    # ---------- 5. 背景生成（用户输入 prompt → CogView） ----------
+    step("5. 背景生成 POST /api/v1/backgrounds/cartoonize")
+    r = client.post("/api/v1/backgrounds/cartoonize", json={"prompt": BG_PROMPT})
     r.raise_for_status()
     cartoon = r.json()
     dump("background_cartoonize", cartoon)
@@ -173,6 +167,8 @@ def main() -> int:
                 photo_ids.append(r.json()["photo_id"])
             print(f"已上传 {len(photo_ids)} 张照片: {photo_ids}")
 
+            # 视频改走 CogVideoX-Flash 文生视频（GLM-4 剧本→单段 mp4，~1-3 分钟）
+            # with_narration/transition/sec_per_scene/avatar_id 现已忽略（兼容保留）
             r = client.post("/api/v1/videos/generate", json={
                 "photo_ids": photo_ids,
                 "avatar_id": avatar_id,

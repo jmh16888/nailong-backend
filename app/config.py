@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     vlm_model: str = "glm-4v-flash"        # 图像理解（完全免费）
     llm_model: str = "glm-4-flash"         # 文本生成：剧本/游戏配置（免费）
     image_gen_model: str = "cogview-3-flash"  # 文生图：素材制作/精致版彩蛋（免费）
+    cogvideo_model: str = "cogvideox-flash"  # 文生视频（免费，纯文本→mp4）
 
     # ---- 限流（按控制台"速率限制"页调整）----
     api_concurrency: int = 2               # 免费模型并发较低，别贪

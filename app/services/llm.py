@@ -45,7 +45,7 @@ def write_story(descriptions: list[str], theme: str, sec_per_scene: float) -> li
         s = by_index.get(i)
         if s is None:
             log.warning("第 %d 幕缺失，使用默认旁白", i)
-            s = _SceneRaw(photo_index=i, narration="奶龙继续它的奇妙历险！")
+            s = _SceneRaw(photo_index=i, narration="主角继续它的奇妙历险！")
         scenes.append(Scene(
             photo_id="",  # 由调用方回填 photo_id
             narration=s.narration[:80],

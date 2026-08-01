@@ -1,18 +1,18 @@
 """游戏素材包：跑跳帧生成（Pillow 仿射变换）+ 程序化障碍物/金币精灵 + 关卡配置"""
 from __future__ import annotations
 
+import io
 import logging
-import math
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from ..schemas.background import SceneTags
 from ..schemas.game import (
     CharacterSprite, Difficulty, GameConfig, GamePackageResponse, SpriteInfo,
 )
 from ..schemas.common import ImageRef
-from . import store
+from . import bg_remove, image_gen, store
 
 log = logging.getLogger(__name__)
 
@@ -71,35 +71,16 @@ def make_character_frames(avatar_path: Path, out_dir: Path) -> CharacterSprite:
 
 # ---------------------------------------------------------------- 精灵绘制
 
-def _draw_sprite(kind: str) -> Image.Image:
-    img = Image.new("RGBA", (96, 96), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    if kind == "stone":
-        d.polygon([(10, 88), (18, 44), (44, 22), (74, 30), (88, 60), (84, 88)],
-                  fill=(150, 150, 158, 255), outline=(100, 100, 108, 255))
-        d.line([(30, 50), (50, 44)], fill=(120, 120, 128, 255), width=4)
-    elif kind == "stump":
-        d.rectangle((28, 36, 68, 88), fill=(139, 90, 43, 255))
-        d.ellipse((22, 22, 74, 46), fill=(196, 145, 90, 255), outline=(139, 90, 43, 255), width=3)
-        d.ellipse((36, 29, 60, 40), outline=(139, 90, 43, 255), width=2)  # 年轮
-    elif kind == "cone":
-        d.polygon([(48, 14), (78, 78), (18, 78)], fill=(245, 120, 40, 255))
-        d.polygon([(35, 46), (61, 46), (67, 60), (29, 60)], fill=(255, 240, 230, 255))  # 反光条
-        d.rectangle((10, 76, 86, 90), fill=(220, 100, 30, 255))
-    elif kind == "flower":
-        for ang in range(0, 360, 60):
-            x = 48 + 20 * math.cos(math.radians(ang))
-            y = 40 + 20 * math.sin(math.radians(ang))
-            d.ellipse((x - 13, y - 13, x + 13, y + 13), fill=(250, 130, 170, 255))
-        d.ellipse((37, 29, 59, 51), fill=(255, 220, 80, 255))
-        d.rectangle((45, 56, 51, 88), fill=(90, 170, 80, 255))
-    elif kind == "coin":
-        d.ellipse((20, 20, 76, 76), fill=(255, 210, 60, 255), outline=(220, 165, 30, 255), width=5)
-        d.ellipse((32, 32, 64, 64), outline=(220, 165, 30, 255), width=3)
-        d.text((42, 34), "★", fill=(220, 165, 30, 255))
-    else:
-        d.ellipse((16, 16, 80, 80), fill=(180, 180, 190, 255))
-    return img
+def _make_sprite(kind: str) -> Image.Image:
+    """游戏精灵：CogView 生成 → rembg 抠透明 → 96×96 居中；失败抛错（无 _draw_sprite 兜底）。"""
+    b = image_gen.cogview_sprite(kind)
+    c = bg_remove.cutout_to_canvas(b, 96) if b else None
+    if not c:
+        raise RuntimeError(f"精灵生成失败：CogView/抠图未返回有效结果（{kind}）")
+    try:
+        return Image.open(io.BytesIO(c)).convert("RGBA")
+    except Exception as e:
+        raise RuntimeError(f"精灵 {kind} 抠图结果解码失败: {e}")
 
 
 def _pick_obstacles(scene: SceneTags | None) -> list[str]:
@@ -129,12 +110,12 @@ def build_package(game_id: str, avatar_path: Path, background_path: Path,
     obstacles: list[SpriteInfo] = []
     for kind in _pick_obstacles(scene):
         p = out_dir / f"obstacle_{kind}.png"
-        sprite = _draw_sprite(kind)
+        sprite = _make_sprite(kind)
         sprite.save(p)
         obstacles.append(SpriteInfo(name=kind, image=ImageRef(id=kind, url=store.url_of(p)),
                                     width=sprite.width, height=sprite.height))
 
-    coin = _draw_sprite("coin")
+    coin = _make_sprite("coin")
     coin_path = out_dir / "coin.png"
     coin.save(coin_path)
     coin_sprite = SpriteInfo(name="coin", image=ImageRef(id="coin", url=store.url_of(coin_path)),

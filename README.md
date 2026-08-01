@@ -5,7 +5,7 @@
 ## 快速开始
 
 ```bash
-conda activate DN        # 或新建：conda create -n DN python=3.10 -y
+conda activate ND        # 或新建：conda create -n ND python=3.10 -y
 pip install -r requirements.txt
 cp .env.example .env     # 填入智谱 API Key（不填也能跑，VLM/剧本相关自动降级）
 uvicorn app.main:app --reload --port 8000
@@ -20,6 +20,87 @@ python scripts/e2e_test.py                # 全链路（含视频生成）
 python scripts/e2e_test.py --skip-video   # 跳过视频，快速冒烟
 ```
 
+## 测试流程
+
+> 前提：已完成「快速开始」（依赖装好、`.env` 配好 key、后端已 `uvicorn` 起在 8000）。
+> 生图走 CogView-3-Flash + rembg 抠透明，单次请求 10~30s；首次 rembg 会加载 u2net 权重（已缓存在 `.cache/u2net/`）。
+
+### 0. 健康检查
+
+```bash
+curl -s http://127.0.0.1:8000/api/health
+# 期望：{"status":"ok","zhipu_key_configured":true,"models":{...}}
+```
+
+`zhipu_key_configured: false` → `.env` 的 key 没生效，生图会走兜底（纸娃娃/AnimeGAN）。
+
+### 1. 自动端到端冒烟
+
+改 `scripts/e2e_test.py` 顶部 CONFIG 区的照片路径，然后：
+
+```bash
+python scripts/e2e_test.py --skip-video   # 快速冒烟（跳过视频）
+python scripts/e2e_test.py                # 全链路（含视频，慢）
+```
+
+覆盖 analyze → compose → 换装 → 背景 → 游戏 → 视频。主图走 CogView+rembg（GLM-4V 特征→GLM-4 扩写→写死 Q版卡通风→CogView→rembg 抠透明）。
+
+### 2. 手动分步验证（curl）
+
+准备默认特征 JSON（或先 `POST /avatars/analyze` 上传照片拿真实特征）：
+
+```bash
+FEAT='{"gender_style":"neutral","age_group":"young_adult","face_shape":"oval","hair_style":"short","hair_color":"black","glasses":"none","expression":"happy","skin_tone":"light","accessories":[],"outfit":"cape","notes":""}'
+```
+
+**a) 形象合成**（CogView + rembg，~12~30s）→ 512×512 透明 PNG：
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/avatars/compose \
+  -H 'Content-Type: application/json' \
+  -d "{\"features\":$FEAT}" | python -m json.tool
+```
+
+**b) 背景生成**（用户 prompt → CogView，~20s）→ 1024×1024 背景 + 场景标签：
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/backgrounds/cartoonize \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"校园操场，阳光明媚"}' | python -m json.tool
+```
+
+**c) 游戏素材包**（CogView 精灵 + rembg，~45s）→ 96×96 透明精灵 + 角色跑跳帧：
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/games/package \
+  -H 'Content-Type: application/json' \
+  -d '{"avatar_id":"<a 的 avatar_id>","background_id":"<b 的 background_id>","difficulty":"normal"}' \
+  | python -m json.tool
+```
+
+**d) 视频**（异步，CogVideoX-Flash 文生视频，~1-3 分钟）：`POST /api/v1/videos/generate` 传 `photo_ids` + `theme`（`avatar_id`/`with_narration` 等兼容保留但忽略），拿 `job_id` 后轮询：
+
+```bash
+curl -s http://127.0.0.1:8000/api/v1/videos/<job_id> | python -m json.tool
+# status: processing → done；done 后取 video.url（mp4，含 AI 音效）
+```
+
+### 3. 兜底/降级测试
+
+把 `.env` 的 `NAILONG_ZHIPU_API_KEY` 改成无效值，重启后端，再跑 a/b：
+
+- 应仍返回 **HTTP 200**（不报 500）；
+- 形象回退纸娃娃、背景回退 AnimeGAN/cv2；
+- 后端日志出现 `CogView ... 生成失败，回退` 警告。
+
+验完改回真 key 重启。
+
+### 4. 产物自检
+
+- `image.url`（`/static/outputs/avatars/<id>.png`）：用 PIL 看应 `mode=RGBA`、四周透明、主体居中；CogView 插画风、文件 ~100KB+（区别于纸娃娃兜底 ~6KB）。
+- 游戏精灵（`/static/outputs/games/<gid>/obstacle_*.png`）：96×96 RGBA 透明。
+- 后端日志无 `回退` 警告 = 主路径（CogView+rembg）正常跑通。
+
 ## 接口一览（v1 契约已冻结）
 
 详细字段/枚举/示例见 **[docs/api.md](docs/api.md)**（给前端的接口文档）。
@@ -28,13 +109,13 @@ python scripts/e2e_test.py --skip-video   # 跳过视频，快速冒烟
 |---|---|---|---|
 | 上传 | POST | `/api/v1/uploads` | 上传照片 → photo_id + URL |
 | 形象 | POST | `/api/v1/avatars/analyze` | 照片 → MediaPipe 信号 + GLM-4V 结构化五官特征 |
-| 形象 | POST | `/api/v1/avatars/compose` | 特征 JSON → 奶龙形象 PNG（纸娃娃合成） |
+| 形象 | POST | `/api/v1/avatars/compose` | 特征 JSON → 形象 PNG（CogView 生图 + rembg 抠透明，失败回退纸娃娃） |
 | 形象 | PUT | `/api/v1/avatars/{avatar_id}/outfit` | 换装/换发型/换表情 |
 | 形象 | GET | `/api/v1/assets/wardrobe` | 可换装部件清单 |
-| 背景 | POST | `/api/v1/backgrounds/cartoonize` | AnimeGANv2 卡通化 + GLM-4V 场景标签 |
+| 背景 | POST | `/api/v1/backgrounds/cartoonize` | 用户 prompt → CogView 生图 + GLM-4 场景标签 |
 | 游戏 | POST | `/api/v1/games/package` | 形象+背景+难度 → 素材包+关卡配置 |
 | 游戏 | POST/GET | `/api/v1/games/scores` `/api/v1/games/leaderboard` | 免登录排行榜（SQLite 持久化） |
-| 视频 | POST | `/api/v1/videos/generate` | 照片列表 → 动画视频任务（异步） |
+| 视频 | POST | `/api/v1/videos/generate` | 照片→GLM-4 剧本→CogVideoX-Flash 文生视频（异步，~1-3 分钟） |
 | 视频 | GET | `/api/v1/videos/{job_id}` | 任务状态/进度/成片地址 |
 
 ## 目录说明
@@ -79,7 +160,7 @@ scp -rC <服务器登录>:/root/ND/nailong-backend ./
 
 ```bash
 cd nailong-backend
-conda create -n DN python=3.10 -y && conda activate DN   # 已有 DN 环境则跳过创建
+conda create -n ND python=3.10 -y && conda activate ND   # 已有 ND 环境则跳过创建
 
 # 有 NVIDIA 显卡：先装 CUDA 版 torch
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121

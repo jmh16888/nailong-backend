@@ -10,10 +10,11 @@ import base64
 import json
 import re
 import threading
+import time
 
 import httpx
 from openai import OpenAI
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from ..config import settings
 
@@ -46,6 +47,22 @@ _RETRY = dict(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=2, max=30),
     retry=retry_if_exception_type(Exception),
+    reraise=True,
+)
+
+
+def _is_429_5xx(e) -> bool:
+    """429（模型拥堵/限流）或 5xx 才重试；4xx（401/400 等）立即失败。"""
+    return isinstance(e, httpx.HTTPStatusError) and (
+        e.response.status_code == 429 or e.response.status_code >= 500
+    )
+
+
+# 视频提交：智谱 cogvideox-flash 偶发"该模型当前访问量过大"(429)，短退避重试拿窗口，持续拥堵快速失败
+_VIDEO_RETRY = dict(
+    stop=stop_after_attempt(6),
+    wait=wait_exponential(multiplier=1, min=5, max=20),
+    retry=retry_if_exception(_is_429_5xx),
     reraise=True,
 )
 
@@ -94,6 +111,70 @@ def gen_image(prompt: str, size: str = "1024x1024") -> bytes:
         r = httpx.get(url, timeout=120.0, follow_redirects=True)
         r.raise_for_status()
     return r.content
+
+
+# ---------- 文生视频（CogVideoX-Flash，异步） ----------
+
+def _auth_headers() -> dict:
+    return {"Authorization": f"Bearer {settings.zhipu_api_key}"}
+
+
+@retry(**_VIDEO_RETRY)
+def _video_submit(payload: dict) -> str:
+    """提交视频生成任务，返回 task_id。429/5xx 长退避重试（智谱模型拥堵）。"""
+    with _sem:
+        r = httpx.post(f"{settings.zhipu_base_url}videos/generations",
+                       headers=_auth_headers(), json=payload, timeout=60.0)
+    r.raise_for_status()
+    data = r.json()
+    if data.get("task_status") == "FAIL" or not data.get("id"):
+        raise ZhipuError(f"视频任务提交失败: {data}")
+    return data["id"]
+
+
+@retry(**_RETRY)
+def _download(url: str) -> bytes:
+    """下载生成的视频字节"""
+    with _sem:
+        r = httpx.get(url, timeout=120.0, follow_redirects=True)
+        r.raise_for_status()
+    return r.content
+
+
+def cogvideo(prompt: str, duration: int = 10, with_audio: bool = True,
+             size: str = "1920x1080", fps: int = 30,
+             poll_interval: float = 5.0, timeout: float = 600.0) -> bytes:
+    """文生视频（CogVideoX-Flash，免费、纯文本→mp4）。异步：提交→轮询 async-result→下载。
+
+    在 BackgroundTask 工作线程里调用，time.sleep 不阻塞事件循环。
+    成功返回 mp4 bytes；FAIL/超时抛 ZhipuError。
+    """
+    payload = {
+        "model": settings.cogvideo_model,
+        "prompt": (prompt or "")[:512],
+        "duration": duration,
+        "with_audio": with_audio,
+        "size": size,
+        "fps": fps,
+    }
+    task_id = _video_submit(payload)
+    deadline = time.time() + timeout
+    poll_url = f"{settings.zhipu_base_url}async-result/{task_id}"
+    while time.time() < deadline:
+        with _sem:
+            r = httpx.get(poll_url, headers=_auth_headers(), timeout=60.0)
+        r.raise_for_status()
+        data = r.json()
+        status = data.get("task_status")
+        if status == "SUCCESS":
+            items = data.get("video_result") or []
+            if items and items[0].get("url"):
+                return _download(items[0]["url"])
+            raise ZhipuError(f"视频生成成功但无 url: {data}")
+        if status == "FAIL":
+            raise ZhipuError(f"视频生成失败: {data}")
+        time.sleep(poll_interval)
+    raise ZhipuError("视频生成超时")
 
 
 # ---------- JSON 容错解析 ----------

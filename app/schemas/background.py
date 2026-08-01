@@ -44,5 +44,10 @@ class SceneTags(BaseModel):
 
 class CartoonizeResponse(BaseModel):
     background_id: str
-    image: ImageRef = Field(..., description="卡通化后的背景图")
+    image: ImageRef = Field(..., description="卡通背景图（CogView-3-Flash 按 prompt 生成）")
     scene: SceneTags
+
+
+class BackgroundPromptRequest(BaseModel):
+    """背景生成请求：用户输入文本 prompt，后端调 CogView 生图。"""
+    prompt: str = Field(..., min_length=1, max_length=500, description="想生成的背景描述文本")

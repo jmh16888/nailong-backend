@@ -42,7 +42,7 @@ class VideoGenerateRequest(BaseModel):
     photo_ids: list[str] = Field(..., min_length=1, max_length=10,
                                  description="已上传照片 ID（/uploads 返回），按顺序串成故事")
     avatar_id: str | None = Field(None, description="奶龙形象 ID，提供则出镜")
-    theme: str = Field("奶龙历险记", max_length=50, description="故事主题，影响剧本风格")
+    theme: str = Field("卡通历险记", max_length=50, description="故事主题，影响剧本风格")
     with_narration: bool = Field(True, description="是否用 edge-tts 生成旁白配音")
     transition: TransitionStyle = TransitionStyle.fade
     sec_per_scene: float = Field(3.0, ge=1.5, le=10, description="默认每幕时长（秒）")

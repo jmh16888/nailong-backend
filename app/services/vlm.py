@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..prompts import (
     PHOTO_DESC_PROMPT, PHOTO_DESC_SYSTEM, PORTRAIT_PROMPT, PORTRAIT_SYSTEM,
-    SCENE_PROMPT, SCENE_SYSTEM,
+    SCENE_PROMPT, SCENE_SYSTEM, scene_from_text_prompt,
 )
 from ..schemas.avatar import FaceFeatures
 from ..schemas.background import SceneTags
@@ -50,6 +50,12 @@ def analyze_scene(image_bytes: bytes) -> SceneTags:
     """场景分析：游戏主题 + 障碍物建议"""
     raw = zhipu.chat_with_image(SCENE_PROMPT, image_bytes, system=SCENE_SYSTEM)
     return _validate_with_repair(raw, SceneTags, image_bytes)
+
+
+def analyze_scene_from_text(prompt: str) -> SceneTags:
+    """场景分析（纯文本）：据用户输入的背景 prompt 文本输出 SceneTags，供游戏挑障碍物。"""
+    raw = zhipu.chat_text(scene_from_text_prompt(prompt), system=SCENE_SYSTEM)
+    return _validate_with_repair(raw, SceneTags)  # image_bytes=None → 修复走 chat_text
 
 
 def describe_photo(image_bytes: bytes) -> str:

@@ -1,4 +1,4 @@
-"""奶龙形象模块契约。
+"""形象模块契约。
 
 核心：FaceFeatures —— MediaPipe 量化特征 + GLM-4V-Flash 语义特征融合后的
 结构化五官特征 JSON。所有字段取枚举值，保证能一一映射到素材库图层，
@@ -80,12 +80,12 @@ class SkinTone(str, Enum):
 
 
 class Outfit(str, Enum):
-    none = "none"        # 奶龙本体（不穿衣服）
+    none = "none"        
     tshirt = "tshirt"
     hoodie = "hoodie"
     dress = "dress"
     suit = "suit"
-    cape = "cape"        # 披风（历险记主角感）
+    cape = "cape"       
 
 
 class Accessory(str, Enum):
@@ -136,17 +136,12 @@ class ComposeRequest(BaseModel):
     avatar_id: str | None = Field(
         None, description="传入 analyze 返回的 avatar_id 则形象图挂在同一记录下（换装/游戏/视频可引用）"
     )
-    with_fancy: bool = Field(
-        False,
-        description="是否额外调 CogView-3-Flash 生成精致手绘版彩蛋（慢，10~30s，可失败降级）",
-    )
 
 
 class AvatarComposeResponse(BaseModel):
     avatar_id: str
-    image: ImageRef = Field(..., description="纸娃娃合成的奶龙形象 PNG（透明底）")
+    image: ImageRef = Field(..., description="形象 PNG（CogView+rembg 抠透明）")
     layers: list[str] = Field(..., description="实际使用的图层 asset 相对路径，供调试/换装界面")
-    fancy_image: ImageRef | None = Field(None, description="精致手绘版（with_fancy=True 时返回）")
 
 
 class OutfitChangeRequest(BaseModel):

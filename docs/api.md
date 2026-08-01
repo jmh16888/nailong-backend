@@ -51,9 +51,9 @@
 照片 ──► /avatars/analyze ──► avatar_id + features（五官特征JSON）
                                   │
                                   ▼
-                        /avatars/compose ──► 奶龙形象PNG
+                        /avatars/compose ──► 形象PNG
                                   │
-场景照片 ──► /backgrounds/cartoonize ──► background_id + 场景标签
+背景 prompt ──► /backgrounds/cartoonize ──► background_id + 场景标签
                                   │
                                   ▼
                         /games/package ──► 游戏素材包（前端引擎消费）
@@ -137,7 +137,7 @@
 }
 ```
 
-### 4.2 POST `/api/v1/avatars/compose` — 特征 JSON → 奶龙形象 PNG（纸娃娃合成）
+### 4.2 POST `/api/v1/avatars/compose` — 特征 JSON → 形象 PNG（GLM-4V+GLM-4 扩写 prompt → CogView 生图 + rembg 抠透明）
 
 **请求 `ComposeRequest`**
 
@@ -145,16 +145,14 @@
 |---|---|---|---|
 | features | FaceFeatures | ✅ | 可直接回传 analyze 的 features（可改） |
 | avatar_id | string? | | 传 analyze 返回的 id 则形象图挂在同一记录下 |
-| with_fancy | bool | | 额外生成 CogView 精致手绘版彩蛋（慢 10~30s，失败自动降级为 null） |
 
 **响应 `AvatarComposeResponse`**
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | avatar_id | string | 形象 ID |
-| image | ImageRef | 合成的奶龙形象 PNG（透明底） |
+| image | ImageRef | 形象 PNG（透明底）：GLM-4V 特征 → GLM-4 扩写外貌描述 → 写死 Q版卡通风前后缀 → CogView-3-Flash 生成 + rembg 抠图；失败 502（无纸娃娃兜底） |
 | layers | string[] | 实际使用的图层 asset 路径（调试/换装界面用） |
-| fancy_image | ImageRef? | 精致手绘版（with_fancy=true 且成功时返回） |
 
 ### 4.3 PUT `/api/v1/avatars/{avatar_id}/outfit` — 换装 / 换发型 / 换表情
 
@@ -224,33 +222,25 @@
 
 ---
 
-## 5. 背景卡通化
+## 5. 背景生成
 
-### POST `/api/v1/backgrounds/cartoonize` — 照片 → 卡通背景 + 场景标签
+### POST `/api/v1/backgrounds/cartoonize` — 文本 prompt → 卡通背景（CogView 生图）+ 场景标签
 
-`multipart/form-data`：
+`application/json`，请求体 `BackgroundPromptRequest`：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| file | 文件 | 场景照片 |
-| style | string | 画风，见下表，默认 `paprika` |
+| prompt | string | 想生成的背景描述文本（1~500 字），想生成什么背景就写什么 |
 
-**CartoonStyle 枚举**（AnimeGANv2 权重）：
-
-| 值 | 说明 |
-|---|---|
-| `paprika` | 今敏《红辣椒》风：色彩浓郁，风景人像皆宜 |
-| `face_paint_v2` | 肖像彩绘 v2：柔和明亮，人像更好看 |
-| `face_paint_v1` | 肖像彩绘 v1：笔触更重 |
-| `celeba_distill` | 人像精简风：轻量快速 |
+后端据 `prompt` 调 CogView-3-Flash 生背景图，并让 GLM-4-Flash 从 `prompt` 文本提取 `SceneTags`（供游戏挑障碍物）。CogView 失败 → 502（无 AnimeGAN 兜底）。
 
 **响应 `CartoonizeResponse`**
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | background_id | string | 背景 ID（游戏素材包用它引用） |
-| image | ImageRef | 卡通化后的背景图 |
-| scene | SceneTags | GLM-4V 场景标签（驱动游戏主题） |
+| image | ImageRef | 卡通背景图（CogView-3-Flash 按 prompt 生成） |
+| scene | SceneTags | GLM-4 从 prompt 文本提取的场景标签（驱动游戏主题） |
 
 `SceneTags`：
 
@@ -327,6 +317,8 @@ Query 参数：`difficulty`（默认 `normal`）、`limit`（默认 20，1~100�
 
 ## 7. 动画视频
 
+视频改用智谱 **CogVideoX-Flash 文生视频**：GLM-4V 描述照片 → GLM-4 写分镜剧本 → 拼成一段 prompt → CogVideoX 生成单段 mp4（`with_audio` AI 音效）。不再逐帧合成 / ffmpeg / edge-tts；照片只作故事文本种子，形象不再出镜（CogVideoX 纯文生视频，不收图）。
+
 ### 7.1 POST `/api/v1/videos/generate` — 提交视频生成任务（异步）
 
 照片需先走 `POST /uploads` 拿到 `photo_id`。
@@ -335,12 +327,12 @@ Query 参数：`difficulty`（默认 `normal`）、`limit`（默认 20，1~100�
 
 | 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| photo_ids | string[] | — | 1~10 张，按顺序串成故事 |
-| avatar_id | string? | null | 提供则奶龙形象出镜 |
-| theme | string | `奶龙历险记` | ≤50 字，影响剧本风格 |
-| with_narration | bool | true | 是否生成 edge-tts 旁白配音 |
-| transition | `fade`/`slide`/`none` | `fade` | 转场 |
-| sec_per_scene | float | 3.0 | 1.5~10，默认每幕时长 |
+| photo_ids | string[] | — | 1~10 张，GLM-4V 描述后作故事素材 |
+| theme | string | `卡通历险记` | ≤50 字，影响剧本风格 |
+| avatar_id | string? | null | （兼容保留，CogVideoX 路径下忽略） |
+| with_narration | bool | true | （兼容保留，忽略；视频用 CogVideoX with_audio 音效） |
+| transition | `fade`/`slide`/`none` | `fade` | （兼容保留，忽略） |
+| sec_per_scene | float | 3.0 | （兼容保留，忽略；视频固定 ~10s） |
 
 404：任一 photo_id 不存在。
 
@@ -355,7 +347,7 @@ Query 参数：`difficulty`（默认 `normal`）、`limit`（默认 20，1~100�
 | job_id | string | |
 | status | `pending`/`processing`/`done`/`failed` | |
 | progress | float 0~1 | |
-| stage | string | 当前阶段：排队中/卡通化/照片描述/剧本生成/配音/渲染/完成 |
+| stage | string | 当前阶段：排队中/照片描述/剧本生成/CogVideoX 生成中/完成 |
 | storyboard | Scene[]? | 分镜剧本，生成后可见，前端可预览 |
 | video | ImageRef? | 成片 mp4，status=done 时返回 |
 | error | string? | 失败原因 |
@@ -365,12 +357,12 @@ Query 参数：`difficulty`（默认 `normal`）、`limit`（默认 20，1~100�
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | photo_id | string | 对应的照片 |
-| narration | string | 旁白文案，1~2 句，奶龙口吻 |
-| camera_motion | enum | `zoom_in`/`zoom_out`/`pan_left`/`pan_right`/`static` |
-| avatar_action | enum | `walk_across` 走过画面 / `bounce` 原地弹跳 / `peek_corner` 角落探出 / `none` |
-| duration_sec | float | 1.5~10 |
+| narration | string | 旁白文案，1~2 句，主角口吻（拼入 CogVideoX prompt） |
+| camera_motion | enum | （剧本保留，CogVideoX 不使用） |
+| avatar_action | enum | （剧本保留，CogVideoX 不使用） |
+| duration_sec | float | （剧本保留，CogVideoX 不使用） |
 
-**前端轮询建议**：间隔 3~5s；`status=done` 取 `video.url`，`failed` 展示 `error`。总超时建议 ≥ 10 分钟（取决于照片数与是否配音）。
+**前端轮询建议**：间隔 3~5s；`status=done` 取 `video.url`，`failed` 展示 `error`。总超时建议 ≥ 10 分钟（CogVideoX 生成约 1~3 分钟）。
 
 ---
 
@@ -385,9 +377,8 @@ const avatar = await post("/api/v1/avatars/compose", { features, avatar_id });
 // 2. 换装
 await put(`/api/v1/avatars/${avatar_id}/outfit`, { outfit: "cape", accessory: "bow" });
 
-// 3. 背景
-const bf = new FormData(); bf.append("file", sceneFile); bf.append("style", "paprika");
-const bg = await post("/api/v1/backgrounds/cartoonize", bf);
+// 3. 背景（用户输入 prompt → CogView 生图）
+const bg = await post("/api/v1/backgrounds/cartoonize", { prompt: "校园操场，阳光明媚" });
 
 // 4. 游戏
 const pack = await post("/api/v1/games/package", {

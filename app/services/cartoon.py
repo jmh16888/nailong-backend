@@ -14,6 +14,7 @@ from PIL import Image
 
 from ..config import settings
 from ..schemas.background import CartoonStyle
+from . import image_gen, vlm
 
 log = logging.getLogger(__name__)
 
@@ -79,8 +80,25 @@ def _opencv_cartoonize(img: Image.Image) -> Image.Image:
     return Image.fromarray(cv2.cvtColor(cartoon, cv2.COLOR_BGR2RGB))
 
 
-def cartoonize(image_bytes: bytes, style: CartoonStyle) -> bytes:
-    """照片 → 卡通图（PNG bytes）。AnimeGAN 失败自动回退 OpenCV，永不抛错。"""
+def cartoonize(image_bytes: bytes, style: CartoonStyle,
+               description: str | None = None) -> bytes:
+    """照片 → 卡通背景（PNG bytes）。永不抛错。
+
+    主路径：GLM-4V 描述照片 → CogView-3-Flash 重画卡通插画背景（不再忠于原照，
+    CogView 为纯文生图，无法直接拿原照当输入）。失败回退 AnimeGANv2 → OpenCV。
+    description 可由调用方（如视频管线）预先算好传入，避免重复调 GLM-4V。
+    """
+    # 1. 主路径：CogView 按 GLM-4V 描述重画
+    try:
+        desc = description or vlm.describe_photo(image_bytes)
+        b = image_gen.cogview_background(desc)
+        if b:
+            return b
+        log.warning("CogView 背景未返回有效图，回退 AnimeGAN")
+    except Exception as e:
+        log.warning("CogView 背景生成失败(%s: %s)，回退 AnimeGAN", type(e).__name__, e)
+
+    # 2. 兜底：AnimeGAN → OpenCV
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     out: Image.Image
     try:
