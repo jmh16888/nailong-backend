@@ -2,7 +2,7 @@
 
 目录约定（config.storage_dir 下）：
   uploads/{photo_id}.{ext}                     上传原图
-  outputs/avatars/{avatar_id}.png/.json        奶龙形象 + 特征
+  outputs/avatars/{avatar_id}.png/.json        卡通形象 + 特征
   outputs/faces/{avatar_id}.jpg                人脸裁剪图
   outputs/backgrounds/{background_id}.png/.json 卡通背景 + 场景标签
   outputs/games/{game_id}/...                  游戏素材包

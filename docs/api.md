@@ -1,4 +1,4 @@
-# 照片转奶龙卡通系统 — 前端接口文档
+﻿# 照片转卡通卡通系统 — 前端接口文档
 
 > 后端：FastAPI · Base URL：`http://<host>:8000` · 业务前缀：`/api/v1`
 > 在线调试（Swagger）：`http://<host>:8000/docs`
@@ -13,7 +13,7 @@
 - 接口：`{BASE}/api/v1/...`
 - 图片/视频资源：响应中的 `url` 均为**相对路径**，前端拼 base 访问：
   - 生成产物：`/static/...`（如 `/static/outputs/avatars/xxx.png`）
-  - 素材库：`/assets/...`（如 `/assets/nailong/glasses/round.png`）
+  - 素材库：`/assets/...`（如 `/assets/cartoon/glasses/round.png`）
 
 ### 1.2 资源引用对象 `ImageRef`
 
@@ -99,7 +99,7 @@
 
 ---
 
-## 4. 奶龙形象
+## 4. 卡通形象
 
 ### 4.1 POST `/api/v1/avatars/analyze` — 上传人脸照片，输出结构化五官特征
 
@@ -217,7 +217,7 @@
 | Glasses | `none` 无 · `round` 圆框 · `square` 方框 · `sunglasses` 墨镜 |
 | Expression | `happy` 开心 · `neutral` 平静 · `surprised` 惊讶 · `cool` 酷 · `shy` 害羞 |
 | SkinTone | `fair` · `light` · `medium` · `tan` · `dark` |
-| Outfit | `none` 奶龙本体 · `tshirt` T恤 · `hoodie` 卫衣 · `dress` 连衣裙 · `suit` 西装 · `cape` 披风 |
+| Outfit | `none` 角色本体 · `tshirt` T恤 · `hoodie` 卫衣 · `dress` 连衣裙 · `suit` 西装 · `cape` 披风 |
 | Accessory | `none` 无 · `hat` 帽子 · `headband` 发箍 · `bow` 蝴蝶结 · `scarf` 围巾 |
 
 ---
@@ -389,7 +389,7 @@ const pack = await post("/api/v1/games/package", {
 // 5. 视频（异步）
 const up = await post("/api/v1/uploads", photoFormData);       // 每张一次
 const job = await post("/api/v1/videos/generate", {
-  photo_ids: [up.photo_id], avatar_id, theme: "奶龙历险记",
+  photo_ids: [up.photo_id], avatar_id, theme: "卡通历险记",
 });
 // 轮询 GET /api/v1/videos/{job.job_id} 直到 status === "done"
 ```

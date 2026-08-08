@@ -49,7 +49,7 @@ def _anchor_bottom(img: Image.Image, size: tuple[int, int]) -> Image.Image:
 
 
 def make_character_frames(avatar_path: Path, out_dir: Path) -> CharacterSprite:
-    """从奶龙形象 PNG 生成跑步 2 帧 + 跳跃 1 帧"""
+    """从卡通形象 PNG 生成跑步 2 帧 + 跳跃 1 帧"""
     base = Image.open(avatar_path).convert("RGBA")
     w, h = base.size
 

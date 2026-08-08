@@ -1,10 +1,10 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目概况
 
-nailong-backend 是「照片转 Q版卡通」系统的 FastAPI 后端：上传照片 → 分析五官 → 生成 Q版卡通形象 / 背景 / 游戏素材 / 动画视频。生图走智谱 CogView-3-Flash + rembg 抠透明，失败时降级到本地硬编码兜底。
+cartoonize-backend 是「照片转 Q版卡通」系统的 FastAPI 后端：上传照片 → 分析五官 → 生成 Q版卡通形象 / 背景 / 游戏素材 / 动画视频。生图走智谱 CogView-3-Flash + rembg 抠透明，失败时降级到本地硬编码兜底。
 
 ## 环境与常用命令
 
@@ -15,7 +15,7 @@ nailong-backend 是「照片转 Q版卡通」系统的 FastAPI 后端：上传�
 - 启动：`uvicorn app.main:app --reload --port 8000`（app 自己读 `.env`）。
 - 健康检查：`curl -s http://127.0.0.1:8000/api/health`（看 `zhipu_key_configured`）。
 - 端到端冒烟：先改 `scripts/e2e_test.py` 顶部 CONFIG 区照片路径，再 `python scripts/e2e_test.py --skip-video`（快）/ 不带 flag（含视频）。**无单元测试框架**，这是唯一自动化测试。
-- `.env` 必须配 `NAILONG_ZHIPU_API_KEY`（从 `.env.example` 拷贝）；不配则 CogView/VLM 全降级。`.env` 被 gitignore，不入库。
+- `.env` 必须配 `cartoon_ZHIPU_API_KEY`（从 `.env.example` 拷贝）；不配则 CogView/VLM 全降级。`.env` 被 gitignore，不入库。
 
 ## 架构
 
@@ -23,7 +23,7 @@ nailong-backend 是「照片转 Q版卡通」系统的 FastAPI 后端：上传�
 api/v1/    路由层 → services/ 实现 → zhipu/image_gen/bg_remove/vlm/llm（模型调用）
 schemas/   ★ 接口契约（pydantic 模型 + 枚举，前后端共用词汇）
 prompts/   所有发给大模型的 prompt 模板（集中管理）
-config.py  pydantic-settings 读 .env（前缀 NAILONG_）
+config.py  pydantic-settings 读 .env（前缀 cartoon_）
 store.py   资源 ID/路径/JSON sidecar；url_of() 把磁盘路径转 /static URL
 ```
 
@@ -44,7 +44,7 @@ store.py   资源 ID/路径/JSON sidecar；url_of() 把磁盘路径转 /static U
 ## 关键约定
 
 - **接口契约冻结**：`schemas/` 里所有请求/响应字段名与类型不许改（前端依赖）。可改内部实现和图的像素来源，但 endpoint / schema 不动；换图源或风格不算改接口。
-- **改艺术风格 = 改 prompt 字符串，不动逻辑**：风格全在 `prompts/__init__.py`（`fancy_avatar_prompt` / `background_image_prompt` / `sprite_prompt`）。形象当前是 Q版卡通人物（不再绑定奶龙）。CogView 无 system 概念，所谓“改系统提示词”就是改这些 prompt 字符串。
+- **改艺术风格 = 改 prompt 字符串，不动逻辑**：风格全在 `prompts/__init__.py`（`fancy_avatar_prompt` / `background_image_prompt` / `sprite_prompt`）。形象当前是 Q版卡通人物（不再绑定卡通）。CogView 无 system 概念，所谓“改系统提示词”就是改这些 prompt 字符串。
 - **透明度**：CogView 出不透明图；游戏精灵 / 角色帧 / 视频贴图要透明底，透明由 rembg 提供。别把 CogView 不透明图直接喂给需要透明的消费者（会变不透明色块）。
 - **降级优先**：任何模型调用都要有兜底，服务不硬崩。
 - **`.env` 不入库**（gitignore）；只有 `.env.example` 是模板。

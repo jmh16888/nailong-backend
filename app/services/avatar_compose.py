@@ -1,9 +1,9 @@
-"""纸娃娃合成引擎：特征 JSON → 奶龙形象 PNG。
+﻿"""纸娃娃合成引擎：特征 JSON → 卡通形象 PNG。
 
 两层素材机制：
-1. **文件图层**：若 app/assets/nailong/{类别}/{变体}.png 存在则直接使用
+1. **文件图层**：若 app/assets/cartoon/{类别}/{变体}.png 存在则直接使用
    （可用 CogView 生成/手绘的精美素材随时替换，512×512 透明底，锚点与下方程序化绘制一致）；
-2. **程序化绘制**：缺省时用 Pillow 几何图形画出奶龙与各部件 —— 零素材即可端到端跑通。
+2. **程序化绘制**：缺省时用 Pillow 几何图形画出卡通角色与各部件 —— 零素材即可端到端跑通。
 
 图层顺序：cape(背后) → body → belly(肤色) → outfit → arms → expression → blush
           → hair → glasses → accessory
@@ -27,7 +27,7 @@ CX = CANVAS // 2
 
 BODY_COLOR = (255, 211, 77, 255)
 BODY_OUTLINE = (228, 176, 48, 255)
-BELLY_COLORS = {  # skin_tone → 肚皮/脸颊区块颜色（奶龙本体的"肤色"映射）
+BELLY_COLORS = {  # skin_tone → 肚皮/脸颊区块颜色（角色本体的"肤色"映射）
     SkinTone.fair: (255, 242, 200, 255),
     SkinTone.light: (255, 236, 178, 255),
     SkinTone.medium: (247, 224, 158, 255),
@@ -43,7 +43,7 @@ HAIR_COLORS = {
 }
 PINK = (255, 150, 160, 110)
 
-# 身体各部位几何（512 画布，奶龙 = 一颗圆润黄豆）
+# 身体各部位几何（512 画布，卡通角色 = 一颗圆润黄豆）
 _BODY = (116, 118, 396, 470)     # 主体椭圆
 _BELLY = (178, 292, 334, 452)
 _ARM_L = (104, 296, 158, 366)
@@ -58,7 +58,7 @@ _MOUTH = (CX, 312)
 # ---------------------------------------------------------------- 文件图层
 
 def _file_layer(category: str, variant: str) -> Image.Image | None:
-    p = settings.assets_dir / "nailong" / category / f"{variant}.png"
+    p = settings.assets_dir / "cartoon" / category / f"{variant}.png"
     if p.exists():
         try:
             return Image.open(p).convert("RGBA").resize((CANVAS, CANVAS))
@@ -70,7 +70,7 @@ def _file_layer(category: str, variant: str) -> Image.Image | None:
 # ---------------------------------------------------------------- 程序化图层
 
 def _draw_body(d: ImageDraw.ImageDraw, skin: SkinTone) -> None:
-    # 头顶小呆毛（奶龙标志性触角）
+    # 头顶小呆毛（角色标志性触角）
     d.line([(CX, 122), (CX, 92)], fill=BODY_OUTLINE, width=8)
     d.ellipse((CX - 22, 74, CX - 2, 96), fill=(120, 200, 90, 255))   # 左叶
     d.ellipse((CX + 2, 74, CX + 22, 96), fill=(120, 200, 90, 255))   # 右叶
@@ -239,7 +239,7 @@ def _draw_accessory(d: ImageDraw.ImageDraw, acc: Accessory) -> None:
 # ---------------------------------------------------------------- 合成入口
 
 def compose_avatar(features: FaceFeatures, size: int = CANVAS) -> tuple[Image.Image, list[str]]:
-    """按特征合成奶龙形象，返回 (RGBA 图, 实际图层说明列表)"""
+    """按特征合成卡通形象，返回 (RGBA 图, 实际图层说明列表)"""
     img = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
     layers: list[str] = []
 

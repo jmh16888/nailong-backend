@@ -1,7 +1,7 @@
-"""奶龙形象：分析 / 合成 / 换装 / 衣橱（真实实现）
+﻿"""卡通形象：分析 / 合成 / 换装 / 衣橱（真实实现）
 
 pipeline：MediaPipe 人脸分析 → GLM-4V-Flash 特征提取（失败降级默认特征）
-          → 纸娃娃图层合成（程序化素材，可用 assets/nailong/ 下的 PNG 覆盖）
+          → 纸娃娃图层合成（程序化素材，可用 assets/cartoon/ 下的 PNG 覆盖）
 """
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
@@ -71,7 +71,7 @@ async def analyze_avatar(file: UploadFile = File(...)) -> AvatarAnalyzeResponse:
 
 
 @router.post("/avatars/compose", response_model=AvatarComposeResponse,
-             summary="特征 JSON → 形象 PNG（CogView 生图 + rembg 抠透明）")
+             summary="特征 JSON → 形象 PNG（CogView 生图 + rembg 抠透明，失败 502）")
 def compose_avatar(req: ComposeRequest) -> AvatarComposeResponse:
     avatar_id = req.avatar_id or store.new_id()
     png_path = _image_path(avatar_id)
@@ -108,16 +108,15 @@ def change_outfit(avatar_id: str, req: OutfitChangeRequest) -> OutfitChangeRespo
     if req.accessory is not None:
         features.accessories = [] if req.accessory == Accessory.none else [req.accessory]
 
-    img, layers = avatar_compose.compose_avatar(features)  # 纸娃娃：兜底 + layers
     png_path = _image_path(avatar_id)
-    # 主图：CogView 重生成（用合并后的 features，换装才看得到效果）→ rembg 抠透明
+    # 换装主路径：CogView 重生成（合并后的 features）→ rembg 抠透明；失败直接报错（无纸娃娃兜底）
     cogview_bytes = image_gen.cogview_avatar(features)
     cutout_bytes = (bg_remove.cutout_to_canvas(cogview_bytes, 512)
                     if cogview_bytes else None)
-    if cutout_bytes:
-        png_path.write_bytes(cutout_bytes)
-    else:
-        img.save(png_path)
+    if not cutout_bytes:
+        raise HTTPException(502, "换装生成失败：CogView/抠图未返回有效结果（已无纸娃娃兜底）")
+    png_path.write_bytes(cutout_bytes)
+    layers = []
     store.save_json(fp, features)
 
     return OutfitChangeResponse(
@@ -142,9 +141,9 @@ def get_wardrobe() -> WardrobeResponse:
             # 有文件素材的部件给出预览图（/assets 静态挂载）
             preview = None
             if slot in ("glasses", "outfit", "accessory"):
-                p = settings.assets_dir / "nailong" / slot / f"{e.value}.png"
+                p = settings.assets_dir / "cartoon" / slot / f"{e.value}.png"
                 if p.exists():
-                    preview = ImageRef(id=e.value, url=f"/assets/nailong/{slot}/{e.value}.png")
+                    preview = ImageRef(id=e.value, url=f"/assets/cartoon/{slot}/{e.value}.png")
             items.append(WardrobeItem(id=e.value, name=LABELS.get(enum_cls, {}).get(e.value, e.value),
                                       preview=preview))
         categories.append(WardrobeCategory(slot=slot, items=items))

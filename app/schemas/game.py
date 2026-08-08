@@ -14,7 +14,7 @@ class Difficulty(str, Enum):
 
 
 class GamePackageRequest(BaseModel):
-    avatar_id: str = Field(..., description="奶龙形象 ID（/avatars/analyze 或 /compose 返回）")
+    avatar_id: str = Field(..., description="卡通形象 ID（/avatars/analyze 或 /compose 返回）")
     background_id: str = Field(..., description="卡通背景 ID（/backgrounds/cartoonize 返回）")
     difficulty: Difficulty = Difficulty.normal
     duration_sec: int = Field(60, ge=30, le=300, description="一局时长（秒）")

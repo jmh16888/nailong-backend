@@ -1,10 +1,10 @@
-"""全局配置：从 .env 读取，前缀 NAILONG_"""
+﻿"""全局配置：从 .env 读取，前缀 CARTOON_"""
 import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # nailong-backend/
+BASE_DIR = Path(__file__).resolve().parent.parent  # cartoonize-backend/
 
 # 所有模型下载/缓存一律收进项目目录（服务器开发 → 本地部署整体拷贝即可，
 # 不会散落 ~/.cache 等位置）。在 import torch 等库之前设置才有效。
@@ -15,7 +15,7 @@ os.environ.setdefault("U2NET_HOME", str(_CACHE / "u2net"))        # rembg 抠图
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_prefix="NAILONG_", extra="ignore")
+    model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_prefix="CARTOON_", extra="ignore")
 
     # ---- 智谱开放平台（免费模型三件套）----
     zhipu_api_key: str = ""
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     # ---- 本地资源 ----
     storage_dir: Path = BASE_DIR / "app" / "storage"   # 上传与生成结果
-    assets_dir: Path = BASE_DIR / "app" / "assets"     # 奶龙图层素材库/精灵/字体
+    assets_dir: Path = BASE_DIR / "app" / "assets"     # 卡通图层素材库/精灵/字体
     animegan_weight: str = "animeganv2_hayao.pt"       # 放 assets/weights/ 下
     device: str = "cuda"                    # 无独显改 "cpu"（AnimeGAN 也能跑）
 

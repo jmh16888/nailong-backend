@@ -1,4 +1,4 @@
-"""智谱开放平台统一客户端：GLM-4V-Flash / GLM-4-Flash / CogView-3-Flash（均为免费模型）。
+﻿"""智谱开放平台统一客户端：GLM-4V-Flash / GLM-4-Flash / CogView-3-Flash（均为免费模型）。
 
 - OpenAI 兼容接口，base_url 见 config
 - 全局并发信号量限流（免费模型有并发限制）+ tenacity 指数退避重试

@@ -25,5 +25,5 @@ imageio-ffmpeg                   # 自带 ffmpeg 二进制，无需系统安装
 edge-tts                         # 免费旁白配音（需联网）
 mutagen                          # 读取配音时长
 
-# ---- 抠图：把 CogView 不透明底图切成透明 RGBA（奶龙形象/游戏精灵用）----
+# ---- 抠图：把 CogView 不透明底图切成透明 RGBA（卡通形象/游戏精灵用）----
 rembg                            # u2net；首次运行自动下权重到 U2NET_HOME

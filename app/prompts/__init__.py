@@ -1,4 +1,4 @@
-"""分层 prompt 库：所有发给大模型的 prompt 集中在这里。
+﻿"""分层 prompt 库：所有发给大模型的 prompt 集中在这里。
 
 设计要点（报告里 prompt engineering 章节的素材）：
 1. 枚举值由 schemas 动态生成 —— prompt 约束与接口契约永远一致，不会漂移；

@@ -1,4 +1,4 @@
-"""动画视频生成：CogVideoX-Flash 文生视频。
+﻿"""动画视频生成：CogVideoX-Flash 文生视频。
 
 pipeline：GLM-4V-Flash 描述照片 → GLM-4-Flash 写分镜剧本 → 拼成一段 prompt
           → CogVideoX-Flash 文生视频（with_audio AI 音效）→ 落盘 mp4。

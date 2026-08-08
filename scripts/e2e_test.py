@@ -1,4 +1,4 @@
-"""端到端冒烟测试脚本：本地照片 → 上传 → 形象 → 背景 → 游戏 → 视频
+﻿"""端到端冒烟测试脚本：本地照片 → 上传 → 形象 → 背景 → 游戏 → 视频
 
 用法：
     1. 先启动后端：uvicorn app.main:app --port 8000
@@ -22,7 +22,7 @@ import httpx
 # ============================== CONFIG ==============================
 BASE_URL = "http://127.0.0.1:8000"
 
-# 【改这里】测试照片路径：人脸照（用于奶龙形象分析）
+# 【改这里】测试照片路径：人脸照（用于卡通形象分析）
 PORTRAIT_PHOTO = Path("/root/ND/test_data/2184.jpg")
 
 # 【改这里】背景生成 prompt（想生成什么背景就写什么，仅示例）
@@ -79,9 +79,9 @@ def main() -> int:
     r = client.get("/api/health")
     dump("health", r.json())
     if not r.json().get("zhipu_key_configured"):
-        print("!! 警告：未配置 NAILONG_ZHIPU_API_KEY，VLM/剧本相关步骤会走降级逻辑")
+        print("!! 警告：未配置 CARTOON_ZHIPU_API_KEY，VLM/剧本相关步骤会走降级逻辑")
 
-    # ---------- 1. 奶龙形象：分析 ----------
+    # ---------- 1. 卡通形象：分析 ----------
     step("1. 形象分析 POST /api/v1/avatars/analyze")
     if not need(PORTRAIT_PHOTO):
         return 1

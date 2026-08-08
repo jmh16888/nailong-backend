@@ -1,6 +1,7 @@
-# nailong-backend
+﻿# cartoonize-backend
 
-照片转奶龙卡通系统 —— 后端（FastAPI）
+照片转卡通卡通系统 —— 后端（FastAPI）
+照片转卡通形象系统 —— 后端（FastAPI）
 
 ## 快速开始
 
@@ -87,7 +88,7 @@ curl -s http://127.0.0.1:8000/api/v1/videos/<job_id> | python -m json.tool
 
 ### 3. 兜底/降级测试
 
-把 `.env` 的 `NAILONG_ZHIPU_API_KEY` 改成无效值，重启后端，再跑 a/b：
+把 `.env` 的 `CARTOON_ZHIPU_API_KEY` 改成无效值，重启后端，再跑 a/b：
 
 - 应仍返回 **HTTP 200**（不报 500）；
 - 形象回退纸娃娃、背景回退 AnimeGAN/cv2；
@@ -132,7 +133,7 @@ app/
 │   └── video.py     #   分镜剧本/任务状态
 ├── api/v1/          # 路由层（接 services 真实实现）
 ├── services/        # MediaPipe 人脸/纸娃娃合成/AnimeGANv2/游戏打包/视频渲染/智谱API
-├── assets/          # 奶龙图层素材库、游戏精灵、字体、模型权重
+├── assets/          # 卡通图层素材库、游戏精灵、字体、模型权重
 └── storage/         # uploads/（上传）、outputs/（生成结果，/static 挂载）
 docs/api.md          # 前端接口文档
 scripts/e2e_test.py  # 端到端冒烟测试脚本
@@ -147,19 +148,19 @@ scripts/e2e_test.py  # 端到端冒烟测试脚本
 ### 下载到本地（在自己电脑的终端执行）
 
 ```bash
-scp -rC <服务器登录>:/root/ND/nailong-backend ./
+scp -rC <服务器登录>:/root/ND/cartoonize-backend ./
 ```
 
-- 只要 `nailong-backend` 这一个目录（约 51MB）；`scp -r` 会连隐藏目录一起拷，
+- 只要 `cartoonize-backend` 这一个目录（约 51MB）；`scp -r` 会连隐藏目录一起拷，
   项目内 `.cache/` 里的 AnimeGANv2 权重自动带上，本地不用重下。
 - **不要**拷 `/root/ND/.cache/`（约 2.9GB，那是 pip 装包的 wheel 缓存，
   本地 `pip install` 会自己重新下载）。
-- 以后增量同步（只传差异）可用：`rsync -avz --progress <服务器登录>:/root/ND/nailong-backend/ ./nailong-backend/`
+- 以后增量同步（只传差异）可用：`rsync -avz --progress <服务器登录>:/root/ND/cartoonize-backend/ ./cartoonize-backend/`
 
 ### 本地首次配置
 
 ```bash
-cd nailong-backend
+cd cartoonize-backend
 conda create -n ND python=3.10 -y && conda activate ND   # 已有 ND 环境则跳过创建
 
 # 有 NVIDIA 显卡：先装 CUDA 版 torch
@@ -167,8 +168,8 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt        # 无独显直接跑这步即可（装 CPU 版 torch）
 
 cp .env.example .env                   # 然后编辑 .env：
-#   NAILONG_ZHIPU_API_KEY=你的key      # 智谱控制台 https://www.bigmodel.cn/ → API keys
-#   NAILONG_DEVICE=cpu                 # 仅无独显时加这行
+#   CARTOON_ZHIPU_API_KEY=你的key      # 智谱控制台 https://www.bigmodel.cn/ → API keys
+#   cartoon_DEVICE=cpu                 # 仅无独显时加这行
 
 uvicorn app.main:app --port 8000
 ```
